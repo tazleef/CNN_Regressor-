@@ -7,7 +7,13 @@ from scipy import misc
 from tensorlayer.layers import set_keep
 
 ##================== PREPARE DATA ============================================##
+
+LOGDIR = 'D:\LEIDEN\CNN_Regressor\CNN_Regressor-/LOG/'
+tf.reset_default_graph()
 sess = tf.InteractiveSession()
+
+
+
 
 csv = np.loadtxt(open("D:\LEIDEN\Applicator\csv_gt2.csv", "rb"), delimiter=",")
 #csv[:,0]=csv[:,0]/180;
@@ -85,13 +91,14 @@ def model(x, is_train, reuse):
         acc1=tf.divide(subs,y)
         #acc1 = tf.reduce_mean(tf.cast(acc, tf.float32))
         params = nt.all_params
+
+
         return nt, cost, acc1, y
 
 net_train,  cost, _, y_temp = model(x, is_train=True, reuse=False)
 net_test,  cost_test, acc ,y_temp_test= model(x, is_train=False, reuse=True)
 
 ##================== DEFINE TRAIN OPS ========================================##
-
 
 n_epoch = 500
 learning_rate = 0.001
@@ -101,11 +108,17 @@ train_params = tl.layers.get_variables_with_name('STN', train_only=True, printab
 train_op = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999,
     epsilon=1e-05, use_locking=False).minimize(cost, var_list=train_params)
 
+
+
+
+
+
 ##================== TRAINING ================================================##
 tl.layers.initialize_global_variables(sess)
 net_train.print_params()
 net_train.print_layers()
-train=0;
+train=1;
+
 if(train ==1):
     for epoch in range(n_epoch):
         start_time = time.time()
@@ -130,7 +143,16 @@ if(train ==1):
 
                train_loss = train_loss+ err; train_acc1 = train_acc1 + accu1; train_acc2 = train_acc2 + accu2; train_acc3 = train_acc3 + accu3;n_batch =n_batch + 1
             #print("Y: %f" % y_temp_value)
+
+
+            # test_writer = tf.summary.FileWriter(LOGDIR + '/test')
+            # tf.global_variables_initializer().run() #Otherwise you encounter this error : Attempting to use uninitialized value conv2d/kerne
+            # sess.run(tf.global_variables_initializer())
+            summ = tf.summary.merge_all()
+            train_writer = tf.summary.FileWriter(LOGDIR + '/train', sess.graph)
+            # val_writer = tf.summary.FileWriter(LOGDIR + '/val')
             print("   train loss: %f" % (train_loss/ n_batch))
+            train_writer.add_summary(train_loss/n_batch, epoch)
             print("   train acc1: %f" % (train_acc1/ n_batch))
             print("   train acc2: %f" % (train_acc2/ n_batch))
             print("   train acc3: %f" % (train_acc3 / n_batch))
@@ -148,7 +170,7 @@ if(train ==1):
 
                  val_loss += err; val_acc1 += accu1; val_acc2 += accu2; val_acc3 += accu3; n_batch += 1
 
-
+            # val_writer.add_summary(val_loss/n_batch, epoch)
             print("   val loss: %f" % (val_loss/ n_batch))
             print("   val acc1: %f" % (val_acc1/ n_batch))
             print("   val acc2: %f" % (val_acc2 / n_batch))
@@ -214,6 +236,6 @@ for X_test_a, y_test_a in tl.iterate.minibatches(
     n_batch += 1
 
 
-
+#test_writer.add_summary(s, i)
 print("   test loss: %f" % (test_loss/n_batch))
 #print("   test acc: %f" % (test_acc/n_batch))
