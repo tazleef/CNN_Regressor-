@@ -9,7 +9,7 @@ from tensorlayer.layers import set_keep
 ##================== PREPARE DATA ============================================##
 
 LOGDIR = 'D:\LEIDEN\CNN_Regressor\CNN_Regressor-/LOG/'
-tf.reset_default_graph()
+#tf.reset_default_graph()
 sess = tf.InteractiveSession()
 
 
@@ -50,7 +50,7 @@ for num in range(0, 1000):
 
 
 ##================== DEFINE MODEL ============================================##
-batch_size = 64
+batch_size = 200
 x = tf.placeholder(tf.float32, shape=[batch_size, 64, 64, 1], name='x')
 y_ = tf.placeholder(tf.float32, shape=[batch_size, 3], name='y_')
 
@@ -85,22 +85,46 @@ def model(x, is_train, reuse):
     ## 4. Cost function and Accuracy
         y = nt.outputs
         cost = tl.cost.mean_squared_error(y, y_, 'cost')
+        tf.summary.scalar('cost',cost)
+
+
+
+
+
+
+        loss1 = tf.losses.mean_squared_error(y[:,0], y_[:,0])
+        tf.summary.scalar('loss1', loss1)
+
+        loss2 = tf.losses.mean_squared_error(y[:,1], y_[:,1])
+        tf.summary.scalar('loss2', loss2)
+
+        loss3 = tf.losses.mean_squared_error(y[:,2], y_[:,2])
+        tf.summary.scalar('loss3', loss3)
+
+
+
+
+
+
+
+
+
         #correct_prediction = tf.equal(y, y_)
         #acc = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        subs=tf.subtract(y,y_)
-        acc1=tf.divide(subs,y)
-        #acc1 = tf.reduce_mean(tf.cast(acc, tf.float32))
-        params = nt.all_params
+        # subs=tf.subtract(y,y_)
+        # acc1=tf.divide(subs,y)
+        # #acc1 = tf.reduce_mean(tf.cast(acc, tf.float32))
+        # params = nt.all_params
 
 
-        return nt, cost, acc1, y
+        return nt, cost,  y, loss1, loss2 , loss3
 
-net_train,  cost, _, y_temp = model(x, is_train=True, reuse=False)
-net_test,  cost_test, acc ,y_temp_test= model(x, is_train=False, reuse=True)
+net_train,  cost, y_temp,ls1,ls2,ls3 = model(x, is_train=True, reuse=False)
+net_test,  cost_test ,y_temp_test, lsz1,lsz2,lsz3= model(x, is_train=False, reuse=True)
 
 ##================== DEFINE TRAIN OPS ========================================##
 
-n_epoch = 500
+n_epoch = 1000
 learning_rate = 0.001
 print_freq = 10
 
@@ -108,7 +132,11 @@ train_params = tl.layers.get_variables_with_name('STN', train_only=True, printab
 train_op = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999,
     epsilon=1e-05, use_locking=False).minimize(cost, var_list=train_params)
 
-
+merged = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter(LOGDIR + '/train',
+                                      sess.graph)
+test_writer = tf.summary.FileWriter(LOGDIR + '/test')
+tf.global_variables_initializer().run()
 
 
 
@@ -131,51 +159,65 @@ if(train ==1):
 
         if epoch + 1 == 1 or (epoch + 1) % print_freq == 0:
             print("Epoch %d of %d took %fs" % (epoch + 1, n_epoch, time.time() - start_time))
-            train_loss, train_acc1,train_acc2,train_acc3, n_batch = 0, 0, 0,0,0
+            train_loss, train_loss1,train_loss2,train_loss3, n_batch = 0, 0, 0,0,0
             for X_train_a, y_train_a in tl.iterate.minibatches(
                                     X_train, y_train, batch_size, shuffle=False):
-               err, ac ,y_temp_value= sess.run([cost_test, acc, y_temp], feed_dict={x: X_train_a, y_: y_train_a})
-
-               accu1 = 1 - np.mean(abs(ac[:, 0]));
-               accu2 = 1 - np.mean(abs(ac[:, 1]));
-               accu3 = 1 - np.mean(abs(ac[:, 2]));
+               sum, err,y_temp_value, lss1,lss2,lss3= sess.run([merged, cost, y_temp, ls1,ls2,ls3], feed_dict={x: X_train_a, y_: y_train_a})
+               train_writer.add_summary(sum, epoch)
 
 
-               train_loss = train_loss+ err; train_acc1 = train_acc1 + accu1; train_acc2 = train_acc2 + accu2; train_acc3 = train_acc3 + accu3;n_batch =n_batch + 1
+               # accu1 = 1 - np.mean(abs(ac[:, 0]));
+               # accu2 = 1 - np.mean(abs(ac[:, 1]));
+               # accu3 = 1 - np.mean(abs(ac[:, 2]));
+
+
+               train_loss = train_loss+ err; n_batch =n_batch + 1; train_loss1 += lss1;train_loss2 += lss2;train_loss3 += lss3;
             #print("Y: %f" % y_temp_value)
 
 
             # test_writer = tf.summary.FileWriter(LOGDIR + '/test')
             # tf.global_variables_initializer().run() #Otherwise you encounter this error : Attempting to use uninitialized value conv2d/kerne
             # sess.run(tf.global_variables_initializer())
-            summ = tf.summary.merge_all()
-            train_writer = tf.summary.FileWriter(LOGDIR + '/train', sess.graph)
+            #summ = tf.summary.merge_all()
+            #train_writer = tf.summary.FileWriter(LOGDIR + '/train', sess.graph)
             # val_writer = tf.summary.FileWriter(LOGDIR + '/val')
             print("   train loss: %f" % (train_loss/ n_batch))
-            train_writer.add_summary(train_loss/n_batch, epoch)
-            print("   train acc1: %f" % (train_acc1/ n_batch))
-            print("   train acc2: %f" % (train_acc2/ n_batch))
-            print("   train acc3: %f" % (train_acc3 / n_batch))
 
-            val_loss, val_acc1, val_acc2, val_acc3, n_batch = 0, 0, 0,0,0
+            print("   rot loss: %f" % (train_loss1 / n_batch))
+            print("   trans1 loss: %f" % (train_loss2 / n_batch))
+            print("   trans2 loss: %f" % (train_loss3 / n_batch))
+
+            #train_writer.add_summary(train_loss/n_batch, epoch)
+            # print("   train acc1: %f" % (train_acc1/ n_batch))
+            # print("   train acc2: %f" % (train_acc2/ n_batch))
+            # print("   train acc3: %f" % (train_acc3 / n_batch))
+
+            val_loss, val_loss1, val_loss2, val_loss3, n_batch = 0, 0, 0,0,0
             for X_val_a, y_val_a in tl.iterate.minibatches(
                                         X_val, y_val, batch_size, shuffle=False):
-                 err, ac = sess.run([cost_test, acc], feed_dict={x: X_train_a, y_: y_train_a})
+                 summary, err, lss1,lss2,lss3 = sess.run([merged, cost_test,lsz1,lsz2,lsz3], feed_dict={x: X_train_a, y_: y_train_a})
+                 test_writer.add_summary(summary, epoch)
+                 # accu1 = 1 - np.mean(abs(ac[:, 0]));
+                 # accu2 = 1 - np.mean(abs(ac[:, 1]));
+                 # accu3 = 1 - np.mean(abs(ac[:, 2]));
 
-                 accu1 = 1 - np.mean(abs(ac[:, 0]));
-                 accu2 = 1 - np.mean(abs(ac[:, 1]));
-                 accu3 = 1 - np.mean(abs(ac[:, 2]));
 
 
+                 val_loss += err; val_loss1 +=lss1; val_loss2 += lss2; val_loss3 += lss3;
 
-                 val_loss += err; val_acc1 += accu1; val_acc2 += accu2; val_acc3 += accu3; n_batch += 1
+
+                 n_batch += 1
 
             # val_writer.add_summary(val_loss/n_batch, epoch)
             print("   val loss: %f" % (val_loss/ n_batch))
-            print("   val acc1: %f" % (val_acc1/ n_batch))
-            print("   val acc2: %f" % (val_acc2 / n_batch))
-            print("   val acc3: %f" % (val_acc3 / n_batch))
+            # print("   val acc1: %f" % (val_acc1/ n_batch))
+            # print("   val acc2: %f" % (val_acc2 / n_batch))
+            # print("   val acc3: %f" % (val_acc3 / n_batch))
+            #
 
+            print("   rot loss: %f" % (val_loss1 / n_batch))
+            print("   trans1 loss: %f" % (val_loss2 / n_batch))
+            print("   trans2 loss: %f" % (val_loss3 / n_batch))
 
             #tl.files.save_ckpt(sess=sess, mode_name='model.ckpt', var_list=net.all_params, save_dir='model', printable=True)
             # saver = tf.train.Saver()
@@ -231,7 +273,7 @@ print('Evaluation')
 test_loss, test_acc, n_batch = 0, 0, 0
 for X_test_a, y_test_a in tl.iterate.minibatches(
                             X_test, y_test, batch_size, shuffle=False):
-    err, ac, y_temp_test = sess.run([ cost_test, acc, y_temp], feed_dict={x: X_test_a, y_: y_test_a})
+    err,  y_temp_test = sess.run([ cost_test,  y_temp], feed_dict={x: X_test_a, y_: y_test_a})
     test_loss += err; #test_acc += ac;
     n_batch += 1
 
